@@ -1,0 +1,439 @@
+@import url(https://fonts.googleapis.com/css?family=VT323);
+
+/* Scroll Animation */
+@keyframes scroll {
+    0% { height: 0; }
+    100% { height: 100%; }
+}
+
+/* Typing Animation */
+@keyframes type {
+    from { width: 0; }
+}
+
+@keyframes type2 {
+    0% { width: 0; }
+    50% { width: 0; }
+    100% { width: 100%; }
+}
+
+/* Blinking Cursor */
+@keyframes blink {
+    to { opacity: 0; }
+}
+
+@keyframes scan {
+	from {top: 0} to {top: 100%}
+}
+
+/* Flickering Effect */
+@keyframes flicker {
+    0% { opacity: 0.15795; }
+    5% { opacity: 0.31511; }
+    10% { opacity: 0.94554; }
+    15% { opacity: 0.2469; }
+    20% { opacity: 0.62031; }
+    25% { opacity: 0.0293; }
+    30% { opacity: 0.00899; }
+    35% { opacity: 0.5344; }
+    40% { opacity: 0.12778; }
+    45% { opacity: 0.52042; }
+    50% { opacity: 0.3823; }
+    55% { opacity: 0.2198; }
+    60% { opacity: 0.9383; }
+    65% { opacity: 0.86615; }
+    70% { opacity: 0.68695; }
+    75% { opacity: 0.55749; }
+    80% { opacity: 0.96984; }
+    85% { opacity: 0.0361; }
+    90% { opacity: 0.24467; }
+    95% { opacity: 0.08351; }
+    100% { opacity: 0.54813; }
+}
+
+/* Hide scrollbar */
+::-webkit-scrollbar {
+	display: none;
+}
+
+* {
+	box-sizing: border-box;
+}
+
+html {
+	/* background: #383838; */
+	color: #F5EFE7;
+	font-size: 1.2em;
+	font-family: 'VT323', Courier;
+	height: 100%;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+	background: #383838;
+	color: #F5EFE7;
+	font-size: 1.2em;
+	font-family: 'VT323', Courier;
+	height: 100%;
+    margin: 0;
+    padding: 0;
+}
+
+/* Overlay Effect */
+.overlay {
+	height: 1px;
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 1px;
+}
+
+.education-section:hover {
+    transform: scale(1.02);  /* Small hover effect */
+}
+
+/* Parallel Line Effect */
+.overlay:before {
+	background: linear-gradient(#101010 50%, rgba(16, 16, 16, 0.2) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.03));
+	background-size: 100% 3px, 6px 100%;
+	content: "";
+	display: block;
+	pointer-events: none;
+	position: fixed;
+	top: 0;
+	right: 0;
+	bottom: 0;
+	left: 0;
+	z-index: 2;
+}
+
+/* Flickering Effect */
+.overlay:after {
+	animation: flicker 0.30s infinite;
+	background: rgba(16, 16, 16, 0.2);
+	content: "";
+	display: block;
+	pointer-events: none;
+	position: fixed;
+	top: 0;
+	right: 0;
+	bottom: 0;
+	left: 0;
+	z-index: 2;
+}
+
+/* Header Section (Profile Image + Text) */
+header.site {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-transform: uppercase;
+    text-align: left;
+    gap: 20px; /* Space between image and text */
+    flex-wrap: wrap;
+    padding: 20px;
+    margin-bottom: 30px;
+}
+
+/* Profile Image */
+#logo-v {
+    width: 190px;
+    height: auto;
+    flex-shrink: 0;
+    position: relative;
+    top: 10px; /* Moves image slightly up */
+	z-index: 10;
+}
+
+/* Text Section Next to Profile Image */
+.col.two {
+    flex-grow: 1;
+    margin-left: 10px;
+    text-align: left;
+}
+
+/* Navigation Bar */
+nav.site {
+	display: flex;
+    flex-wrap: wrap; /* Wraps to the next line if space is insufficient */
+    gap: 20px; /* Adds spacing between sections */
+	position: relative;
+	width: 100%;
+	z-index: 10;
+	justify-content: flex-start;
+}
+
+/* Navigation Sections */
+.nav-section {
+    flex: 1; /* Distributes available space evenly */
+    min-width: 250px; /* Ensures proper alignment and prevents squeezing */
+}
+
+/* Links */
+a {
+	color: white;
+	text-decoration: none;
+}
+
+a:hover {
+	color: red;
+}
+
+ul a:before, p a:before {
+	color: #00dd00;
+	content: '[';
+}
+
+ul a:after, p a:after {
+	color: #00dd00;
+	content: ']';
+}
+
+/* Content Section */
+.content {
+	animation: scroll 3s 1;
+    background: transparent;
+	overflow: hidden;
+	padding: 40px;
+	position: relative;
+	width: 95%;
+}
+
+/* Footer */
+.site-footer {
+    background: #222;
+    color: white;
+    text-align: center;
+    padding: 10px 15px;
+    width: 100%;
+    margin-top: 40px;
+}
+
+/* Scanline Effect */
+.scanline {
+    position: fixed;
+    left: 50%;
+    top: 50%;
+    width: 10px;
+    height: 10px;
+    background: radial-gradient(circle, rgba(255, 0, 0, 0.8) 20%, rgba(0, 255, 0, 0.6) 40%, rgba(3, 37, 230, 0.837) 60%, rgb(242, 255, 0) 80%, rgba(54, 93, 250, 0) 100%);
+    border-radius: 50%;
+    opacity: 0.8;
+    transform: translate(-50%, -50%) scale(0);
+    animation: expandFullPage 6s ease-out infinite;
+    pointer-events: none;
+    z-index: 1;
+}
+
+/* Expanding Animation */
+@keyframes expandFullPage {
+    0% {
+        transform: translate(-50%, -50%) scale(0);
+        opacity: 1;
+    }
+    100% {
+        transform: translate(-50%, -50%) scale(150); /* Large enough to cover full screen */
+        opacity: 0;
+    }
+}
+
+/* Responsive Design for Mobile */
+@media screen and (max-width: 768px) {
+	header.site {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+    }
+
+    .education-section {
+        padding: 10px;
+    }
+
+    .button {
+        padding: 8px 15px;
+        font-size: 1em;
+    }
+
+	/* Adjust logo size */
+    #logo-v {
+        width: 150px;
+    }
+
+	.col.two {
+        margin-left: 0;
+		text-align: center;
+        width: 100%;
+        padding: 10px 20px;
+    }
+
+	.col.two h4 {
+        font-size: 1.5em;
+    }
+
+	.col.two p {
+        font-size: 1.2em;
+        line-height: 1.4;
+    }
+
+    nav.site {
+        flex-direction: column;
+        align-items: center;
+    }
+
+	.footer-content {
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .footer-section {
+        width: 100%;
+    }
+
+	.content {
+        padding: 20px;
+		margin-top: 30px;
+    }
+}
+
+.back-home {
+    background: transparent !important;
+    text-align: center;
+    margin-top: 0px;
+}
+
+.button {
+    background: #ffffffec;
+    color: black;
+    padding: 10px 20px;
+    border-radius: 5px;
+    text-decoration: none;
+    font-weight: bold;
+    display: inline-block;
+    transition: background 0.3s ease;
+}
+
+.button:hover {
+    background: #ee3e3e;
+    color: white;
+}
+
+h1, h2, h3, h4, h5, h6 {
+	font-weight: normal;
+	margin: 0;
+	text-transform: uppercase;
+}
+
+h4 b {
+	color: white;
+}
+
+p {
+	line-height: 100%;
+	margin: 0;
+}
+
+span {
+	animation: blink 1s infinite
+}
+
+ul {
+	list-style: none;
+}
+
+nav.site > div {
+    flex: 1; /* Ensures equal spacing */
+    min-width: 250px; /* Prevents squeezing when resizing */
+}
+
+nav.site ul {
+	padding: 0;
+	margin: 0;
+}
+
+nav.site ul li {
+	padding: 8px 0px;
+	list-style: none;
+	min-width: 250px;
+	width: auto;
+}
+
+.col {
+	float: left;
+	padding: 0 20px;
+}
+
+.wrapper {
+    background: transparent !important;
+}
+
+.footer-content {
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    max-width: 1200px;
+    margin: auto;
+    padding: 10px;
+}
+
+.footer-section {
+    flex: 1;
+    min-width: 250px;
+}
+
+.footer-section h4 {
+    margin-bottom: 5px;
+}
+
+.footer-bottom {
+    margin-top: 5px;
+    border-top: 1px solid #444;
+    padding-top: 5px;
+    font-size: 0.9em;
+}
+
+.clear {
+    clear: both;
+}
+
+.clearfix {
+    overflow: auto;
+    zoom: 1;
+}
+
+.upper {
+    text-transform: uppercase;
+}
+
+#play-music-btn {
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    padding: 10px 15px;
+    background: #00dd00;
+    color: #000;
+    border: none;
+    cursor: pointer;
+    font-weight: bold;
+    display: none;
+    z-index: 1000;
+}
+
+/* Animated Background Gradient ONLY for Education Page */
+@keyframes gradientAnimation {
+    0% { background-position: 0% 0%; }
+    100% { background-position: 0% 100%; }
+}
+
+#education-page {
+    background: linear-gradient(180deg, #280101e6, #1a120547, #122902, #081d32da, #39074fcf);
+    background-size: 100% 300%; /* Makes gradient taller for smooth animation */
+    animation: gradientAnimation 2s linear infinite alternate; /* Slow vertical animation */
+    color: #ffffff;
+    font-family: 'VT323', Courier;
+    height: 100vh;
+    font-size: 1.4em;
+    margin: 0;
+    padding: 0;
+    transition: background 0.5s ease-in-out;
+}

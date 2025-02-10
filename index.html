@@ -1,0 +1,108 @@
+<html>
+
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script type="text/javascript" src="index.js"></script>
+  <link rel="stylesheet" href="index.css">
+  <link rel="icon" type="image/png" href="assets/favicon.png">
+</head>
+
+<body>
+  <div class="overlay"></div>
+  <div class="scanline"></div>
+  <div class="wrapper">
+    <div class="content clearfix">
+      <header class="site clearfix">
+        <div class="col one">
+          <img
+            src="assets/profile.jpg"
+            width="250" height="250" id="logo-v" />
+        </div>
+        <div class="col two">
+          <h4>Ankit Raj (Soppi)</h4>
+          <p>----------------------------------------</p>
+          <p>Welcome to the world of Soppi</p>
+          <p>Explore me and my contents here</p>
+        </div>
+      </header>
+      <nav class="site">
+        <div class="nav-section">
+            <p>Academic links:</p>
+            <ul>
+                <li><a target="_blank" href="Education.html" title="Click to open">Education</a></li>
+                <li><a target="_blank" href="Achievements.html" title="Click to open">Achievements</a></li>
+                <li><a target="_blank" href="https://github.com/anksoppi546" title = "Click to open">GitHub</a></li>
+                <li><a target="_blank" href="https://www.linkedin.com/in/ankit-raj-bb938b242/" title = "Click to open">LinkedIn</a></li>
+            </ul>
+        </div>
+        <br>
+        <div class="nav-section">
+            <p>Social Media links:</p>
+            <ul>
+                <li><a target="_blank" href="https://www.instagram.com/ank_soppi_768/" title = "Click to open">Instagram</a></li>
+                <li><a target="_blank" href="https://tinyurl.com/FBanksoppi" title = "Click to open">Facebook</a></li>
+                <li><a target="_blank" href="https://www.snapchat.com/add/anksoppi768?share_id=zGVmndFP2_M&locale=en-IN" title = "Click to open">Snapchat</a></li>
+                <li><a target="_blank" href="https://x.com/ank_soppi_768" title = "Click to open">Twitter(X)</a></li>
+                <li><a target="_blank" href="https://www.threads.net/@ank_soppi_768" title = "Click to open">Threads</a></li>
+            </ul>
+        </div>
+        <!-- <div class="nav-section">
+          <p>Study Material:</p>
+          <ul>
+              <li><a target="_blank" href="https://github.com/anksoppi546" title = "Click to open">GitHub</a></li>
+              <li><a target="_blank" href="https://www.linkedin.com/in/ankit-raj-bb938b242/" title = "Click to open">LinkedIn</a></li>
+          </ul>
+      </div>
+      <br> -->
+    </nav>
+      <p class="clear"><br /></p>
+    </div>
+  </div>
+  <footer class="site-footer">
+    <div class="footer-content">
+      <div class="footer-section">
+        <h4>Contact Me</h4>
+        <p>Email: <a href="mailto:anksoppi768@gmail.com" title = "Click to mail directly">anksoppi768@gmail.com</a></p>
+        <p>Contact: <a target="_blank" href="https://wa.me/918292049546" title = "Click to DM on WP">(+91)8292049546</a></p>
+        <p>Address: Gaya, Bihar, India</p>
+      </div>
+      <div class="footer-section">
+        <h4>Follow Me</h4>
+        <p>
+          <a target="_blank" href="https://www.instagram.com/ank_soppi_768/">Instagram</a> |
+          <a target="_blank" href="https://tinyurl.com/FBanksoppi">Facebook</a> |
+          <a target="_blank" href="https://x.com/ank_soppi_768">Twitter(X)</a>
+        </p>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <p>© 2025 Ankit Raj. All Rights Reserved.</p>
+    </div>
+  </footer>
+<!-- Background music when site opens -->
+<audio id="bg-music" autoplay loop>
+    <source src="assets/bg.mp4" type="audio/mp4">
+    Your browser does not support the audio element.
+</audio>
+<!-- if browser blocked audio, it shows play button manually -->
+<script>
+  document.addEventListener("DOMContentLoaded", function() {
+      var audio = document.getElementById("bg-music");
+      audio.volume = 0.1; // Set volume to 10%
+      
+      var playButton = document.createElement("button");
+      playButton.id = "play-music-btn";
+      playButton.innerText = "🔊 Play Music";
+      playButton.onclick = function() { 
+          audio.play(); 
+          playButton.style.display = "none"; 
+      };
+      document.body.appendChild(playButton);
+      
+      audio.play().catch(() => {
+          playButton.style.display = "block"; // Show button if autoplay fails
+      });
+  });
+</script>
+</body>
+</html>
