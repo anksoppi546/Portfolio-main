@@ -14,12 +14,7 @@
     <div class="content clearfix">
       <header class="site clearfix">
         <div class="col one">
-          <a href="https://chatbot-app-tau-topaz.vercel.app/" target="_blank" title="Click here for Portfolio">
             <img src="assets/profile.jpg" width="250" height="250" id="logo-v" />
-          </a>
-          <p style="text-align: center; margin-top: 5px;">
-            <a>Click on the image for Soppi Bot</a>
-          </p>
         </div>
         <div class="col two">
           <h4>Ankit Raj (Soppi)</h4>
@@ -105,6 +100,15 @@
       audio.play().catch(() => {
           playButton.style.display = "block"; // Show button if autoplay fails
       });
+
+      // Soppi Bot Button
+      var botButton = document.createElement("button");
+      botButton.id = "soppi-bot-btn";
+      botButton.innerText = "🤖 Try Soppi Bot";
+      botButton.onclick = function() {
+          window.open("https://chatbot-app-tau-topaz.vercel.app/", "_blank");
+      };
+      document.body.appendChild(botButton);
   });
 </script>
 </body>
