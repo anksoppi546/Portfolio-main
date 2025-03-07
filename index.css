@@ -419,6 +419,23 @@ nav.site ul li {
     z-index: 1000;
 }
 
+#soppi-bot-btn {
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    padding: 10px 15px;
+    background: #007bff; /* Blue color */
+    color: #fff;
+    border: none;
+    cursor: pointer;
+    font-weight: bold;
+    z-index: 1000;
+    border-radius: 5px;
+}
+#soppi-bot-btn:hover {
+    opacity: 0.8;
+}
+
 /* Animated Background Gradient ONLY for Education Page */
 @keyframes gradientAnimation {
     0% { background-position: 0% 0%; }
