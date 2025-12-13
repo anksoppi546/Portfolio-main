@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Select Assessment</title>
+    <style>
+        /* --- 1. CSS VARIABLES & RESET --- */
+        :root {
+            --primary: #2563eb;       /* Royal Blue */
+            --primary-dark: #0fb71f;
+            --bg-color: #faf7befb;
+            --card-bg: #f7eaea;
+            --text-main: #3d0745;
+            --text-sub: #586274;
+            --success: #10b981;
+            --error: #ef4444;
+        }
+
+        * { box-sizing: border-box; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        /* --- 2. HEADER & NAVIGATION --- */
+        nav {
+            width: 100%;
+            background: white;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .nav-logo { font-size: 1.25rem; font-weight: 700; color: var(--primary); }
+        
+        .btn-back {
+            text-decoration: none;
+            color: var(--text-sub);
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            transition: color 0.3s;
+        }
+        .btn-back:hover { color: var(--primary); }
+
+        /* --- 3. MAIN GRID LAYOUT --- */
+        .container {
+            max-width: 1000px;
+            width: 90%;
+            margin-top: 3rem;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 2rem;
+            padding-bottom: 3rem;
+        }
+
+        /* --- 4. CARDS WITH ANIMATION --- */
+        .card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 2rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            transition: all 0.3s ease;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+            border: 1px solid transparent;
+            
+            /* Animation Setup */
+            opacity: 0;
+            transform: translateY(20px);
+            animation: fadeInUp 0.6s ease forwards;
+        }
+
+        /* Stagger animation for cards */
+        .card:nth-child(1) { animation-delay: 0.1s; }
+        .card:nth-child(2) { animation-delay: 0.2s; }
+        .card:nth-child(3) { animation-delay: 0.3s; }
+
+        .card:hover {
+            transform: translateY(-8px);
+            box-shadow: 10px 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            border-color: rgba(207, 118, 9, 0.2);
+        }
+
+        .card h2 { margin: 0 0 0.5rem 0; color: var(--text-main); font-size: 1.5rem; }
+        .card p { color: var(--text-sub); margin-bottom: 1.5rem; line-height: 1.5; }
+
+        .card-badge {
+            display: inline-block;
+            background: #e0e7ff;
+            color: var(--primary);
+            padding: 4px 12px;
+            border-radius: 50px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+        }
+
+        .btn-action {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .btn-action:hover { background: var(--primary-dark); }
+
+        /* --- 5. MODERN MODAL --- */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(4px); /* Blur effect */
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .modal-overlay.active { display: flex; opacity: 1; }
+
+        .modal-box {
+            background: rgb(227, 204, 204);
+            padding: 2.5rem;
+            border-radius: 20px;
+            width: 90%;
+            max-width: 400px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            text-align: center;
+            transform: scale(0.9);
+            transition: transform 0.3s ease;
+        }
+
+        .modal-overlay.active .modal-box { transform: scale(1); }
+
+        .modal-title { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.5rem; color: var(--text-main); }
+        .modal-desc { color: var(--text-sub); margin-bottom: 1.5rem; font-size: 0.95rem; }
+
+        .input-field {
+            width: 100%;
+            padding: 14px;
+            border: 2px solid #f7bda9;
+            border-radius: 10px;
+            font-size: 1.1rem;
+            text-align: center;
+            margin-bottom: 1.5rem;
+            transition: border-color 0.2s;
+            outline: none;
+        }
+        .input-field:focus { border-color: var(--primary); }
+        
+        /* Shake animation for error */
+        .shake { animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both; border-color: var(--error); }
+
+        /* --- 6. ANIMATION KEYFRAMES --- */
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-1px, 0, 0); }
+            20%, 80% { transform: translate3d(2px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+            40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
+    </style>
+</head>
+<body>
+
+    <nav>
+        <a href="index.html" class="btn-back">← Back to Home</a>
+        <div class="nav-logo">QuizPortal</div>
+    </nav>
+
+    <div class="container">
+        
+        <div class="card" onclick="openModal('MAST 1')">
+            <span class="card-badge">Basic, Straight line and Sequence Series</span>
+            <h2>MAST 1 (JEE MAINS)</h2>
+            <p>Chapters : Inequality, Logarithm, Differentiation, Integration, Maxima Minima, Straight lines and Sequence Series</p>
+            <button class="btn-action">Enter Portal</button>
+        </div>
+
+        <div class="card" onclick="openModal('MAST 2')">
+            <span class="card-badge">Quadratic Equations</span>
+            <h2>MAST 2 (JEE MAINS)</h2>
+            <p>Chapters : Modulus and Quadratic Equations</p>
+            <button class="btn-action">Enter Portal</button>
+        </div>
+
+        <div class="card" onclick="openModal('MAST 3')">
+            <span class="card-badge">Complex Number</span>
+            <h2>MAST 3 (JEE MAINS)</h2>
+            <p>Chapters : Complex Number</p>
+            <button class="btn-action">Enter Portal</button>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="securityModal">
+        <div class="modal-box">
+            <div class="modal-title">Security Check</div>
+            <p class="modal-desc" id="modalDesc">Please enter your Unique ID to continue.</p>
+            
+            <input type="number" id="uidInput" class="input-field" placeholder="Enter ID here..." autocomplete="off">
+            
+            <div style="display: flex; gap: 10px;">
+                <button class="btn-action" style="background: #e5e7eb; color: #374151;" onclick="closeModal()">Cancel</button>
+                <button class="btn-action" onclick="verifyID()">Verify</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const modal = document.getElementById('securityModal');
+        const input = document.getElementById('uidInput');
+        let currentTest = '';
+
+        // Open Modal
+        function openModal(testName) {
+            currentTest = testName;
+            document.getElementById('modalDesc').innerText = `Enter ID to unlock ${testName}`;
+            modal.classList.add('active');
+            input.value = ''; // Clear input
+            input.classList.remove('shake'); // Remove error style
+            setTimeout(() => input.focus(), 100); // Auto focus
+        }
+
+        // Close Modal
+        function closeModal() {
+            modal.classList.remove('active');
+        }
+
+        // Close if clicking outside the box
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) closeModal();
+        });
+
+        // Handle Enter Key
+        input.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') verifyID();
+        });
+
+        // LOGIC: Verify ID and Redirect
+        function verifyID() {
+            const id = input.value.trim();
+
+            if (id === 'ank123') {
+                window.location.href = "https://www.instagram.com";
+            } 
+            else if (id === 'soppi123') {
+                window.location.href = "https://www.facebook.com";
+            } 
+            else {
+                // Error Animation
+                input.classList.add('shake');
+                
+                // Remove animation class after it plays so it can play again
+                setTimeout(() => {
+                    input.classList.remove('shake');
+                }, 500);
+            }
+        }
+    </script>
+</body>
+</html>
