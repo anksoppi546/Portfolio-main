@@ -223,7 +223,7 @@
             <div class="modal-title">Security Check</div>
             <p class="modal-desc" id="modalDesc">Please enter your Unique ID to continue.</p>
             
-            <input type="number" id="uidInput" class="input-field" placeholder="Enter ID here..." autocomplete="off">
+            <input type="text" id="uidInput" class="input-field" placeholder="Enter ID here..." autocomplete="off">
             
             <div style="display: flex; gap: 10px;">
                 <button class="btn-action" style="background: #e5e7eb; color: #374151;" onclick="closeModal()">Cancel</button>
@@ -271,6 +271,9 @@
             } 
             else if (id === 'soppi123') {
                 window.location.href = "https://www.facebook.com";
+            }
+            else if (id === 'soppi456') {
+                window.location.href = "https://www.google.com";
             } 
             else {
                 // Error Animation
