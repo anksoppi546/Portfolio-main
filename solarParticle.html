@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Solar Particles</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #050505; font-family: 'Courier New', Courier, monospace; }
+        canvas { display: block; }
+        
+        /* HUD UI */
+        #hud {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #00ffcc;
+            text-shadow: 0 0 5px #00ffcc;
+            pointer-events: none;
+            z-index: 10;
+        }
+        h1 { margin: 0; font-size: 1.2rem; letter-spacing: 2px; border-bottom: 1px solid #00ffcc; padding-bottom: 5px; display: inline-block; }
+        .status { font-size: 0.8rem; margin-top: 10px; color: #fff; opacity: 0.8; }
+        .guide { margin-top: 15px; font-size: 0.85rem; line-height: 1.6; background: rgba(0, 20, 20, 0.7); padding: 15px; border-radius: 4px; border: 1px solid #004444; }
+        .highlight { color: #ff0055; font-weight: bold; }
+        
+        /* Camera Preview */
+        #cam-preview {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            width: 160px;
+            height: 120px;
+            border: 1px solid #00ffcc;
+            opacity: 0.5;
+            transform: scaleX(-1); /* Mirror */
+            z-index: 5;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="hud">
+        <h1>SYSTEM: SOPPI SOLAR PARTICLES</h1>
+        <div class="status" id="status-text">INITIALIZING AI VISION...</div>
+        <div class="guide">
+            <div>☝️ <b>1 Finger:</b> SATURN (Rotating Ring)</div>
+            <div>✌️ <b>2 Fingers:</b> SUN (Solar Flare)</div>
+            <div>🤟 <b>3 Fingers:</b> NORTH STAR (Twinkling)</div>
+            <div>🖖 <b>4 Fingers:</b> OCEAN (Sine Waves)</div>
+            <div>🖐 <b>5 Fingers:</b> SOLAR SYSTEM (Orbits)</div>
+        </div>
+    </div>
+
+    <video id="cam-preview" playsinline autoplay muted></video>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+
+    <script>
+        // --- 1. HIGH RES SETUP ---
+        const CONFIG = {
+            count: 15000,        // High density
+            size: 0.25,          // Base particle size
+            lerpSpeed: 0.06,     // Smoothness
+            camZ: 40             // Camera distance
+        };
+
+        // Scene
+        const scene = new THREE.Scene();
+        // Deep space background color
+        scene.background = new THREE.Color(0x020205); 
+
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.z = CONFIG.camZ;
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+        
+        // CRITICAL: Set Pixel Ratio to Device Native (Retina/4K support)
+        renderer.setPixelRatio(window.devicePixelRatio); 
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // --- 2. TEXTURE GENERATION (Procedural Glow) ---
+        // Creating a texture in code avoids loading blurry images
+        function getTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 32; canvas.height = 32;
+            const ctx = canvas.getContext('2d');
+            
+            // Radial Gradient for soft glow
+            const grad = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);
+            grad.addColorStop(0, 'rgba(255, 255, 255, 1)');
+            grad.addColorStop(0.4, 'rgba(255, 255, 255, 0.5)');
+            grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, 32, 32);
+            
+            const texture = new THREE.Texture(canvas);
+            texture.needsUpdate = true;
+            return texture;
+        }
+
+        // --- 3. PARTICLE SYSTEM ---
+        const geometry = new THREE.BufferGeometry();
+        const positions = new Float32Array(CONFIG.count * 3);
+        const targetPositions = new Float32Array(CONFIG.count * 3);
+        const colors = new Float32Array(CONFIG.count * 3);
+        const sizes = new Float32Array(CONFIG.count); // Individual sizing
+
+        // Orbit data for Solar System mode
+        const orbitData = new Float32Array(CONFIG.count); // Stores angle
+        const radiusData = new Float32Array(CONFIG.count); // Stores distance
+
+        // Initialize Cloud
+        const colorObj = new THREE.Color();
+        for(let i=0; i<CONFIG.count; i++) {
+            const i3 = i * 3;
+            const r = 40 * Math.cbrt(Math.random()); // Even distribution in sphere
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.acos(2 * Math.random() - 1);
+
+            positions[i3] = r * Math.sin(phi) * Math.cos(theta);
+            positions[i3+1] = r * Math.sin(phi) * Math.sin(theta);
+            positions[i3+2] = r * Math.cos(phi);
+
+            targetPositions[i3] = positions[i3];
+            targetPositions[i3+1] = positions[i3+1];
+            targetPositions[i3+2] = positions[i3+2];
+
+            colors[i3] = 0.5; colors[i3+1] = 0.8; colors[i3+2] = 1.0;
+            sizes[i] = Math.random(); // Randomize size for depth
+            orbitData[i] = Math.random() * Math.PI * 2; // Random starting angle
+        }
+
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+        geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+
+        // Shader Material for High Performance + Size Attenuation
+        const material = new THREE.PointsMaterial({
+            size: CONFIG.size,
+            map: getTexture(),
+            vertexColors: true,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            transparent: true,
+            sizeAttenuation: true // Particles get smaller when far away
+        });
+
+        const particles = new THREE.Points(geometry, material);
+        scene.add(particles);
+
+        // --- 4. LOGIC & MATH ---
+        let currentMode = 'cloud';
+        let time = 0;
+        let handX = 0, handY = 0;
+
+        function updateShapes(mode) {
+            currentMode = mode;
+            const pos = geometry.attributes.position.array;
+            
+            for(let i=0; i<CONFIG.count; i++) {
+                const i3 = i * 3;
+                let tx, ty, tz;
+                let r, g, b;
+
+                // --- 1 FINGER: SATURN ---
+                if (mode === 'saturn') {
+                    // 60% Planet, 40% Rings
+                    if (i < CONFIG.count * 0.6) {
+                        // Planet Sphere
+                        const rad = 6;
+                        const u = Math.random();
+                        const v = Math.random();
+                        const theta = 2 * Math.PI * u;
+                        const phi = Math.acos(2 * v - 1);
+                        tx = rad * Math.sin(phi) * Math.cos(theta);
+                        ty = rad * Math.sin(phi) * Math.sin(theta);
+                        tz = rad * Math.cos(phi);
+                        // Sandy/Beige Color
+                        r=0.9; g=0.8; b=0.6;
+                    } else {
+                        // Rings
+                        const angle = orbitData[i]; // Use orbit data for static ring layout
+                        const dist = 9 + Math.random() * 6;
+                        tx = dist * Math.cos(angle);
+                        ty = (Math.random()-0.5) * 0.5; // Thin vertically
+                        tz = dist * Math.sin(angle);
+                        
+                        // Tilt the rings 30 degrees
+                        const tilt = 0.5;
+                        const tempY = ty * Math.cos(tilt) - tz * Math.sin(tilt);
+                        const tempZ = ty * Math.sin(tilt) + tz * Math.cos(tilt);
+                        ty = tempY; tz = tempZ;
+
+                        // Ring Color (Darker beige)
+                        r=0.7; g=0.6; b=0.4;
+                    }
+                }
+
+                // --- 2 FINGERS: SUN ---
+                else if (mode === 'sun') {
+                    // Dense Core with corona
+                    const rad = 8 * Math.random(); // Solid ball
+                    const theta = Math.random() * Math.PI * 2;
+                    const phi = Math.acos(2 * Math.random() - 1);
+                    
+                    tx = rad * Math.sin(phi) * Math.cos(theta);
+                    ty = rad * Math.sin(phi) * Math.sin(theta);
+                    tz = rad * Math.cos(phi);
+                    
+                    // Fire Colors (Red/Orange/Yellow)
+                    const temp = Math.random();
+                    if(temp > 0.7) { r=1.0; g=1.0; b=0.5; } // Yellow
+                    else if (temp > 0.3) { r=1.0; g=0.5; b=0.0; } // Orange
+                    else { r=0.8; g=0.1; b=0.1; } // Red
+                }
+
+                // --- 3 FINGERS: STAR ---
+                else if (mode === 'star') {
+                    // 5-Pointed Parametric Star or Burst
+                    // Using a simpler "Burst" shape with spikes
+                    const spikeCount = 5;
+                    // Distribute particles into spikes
+                    const arm = i % spikeCount;
+                    const armAngle = (arm / spikeCount) * Math.PI * 2;
+                    // Add randomness to width of arm
+                    const spread = (Math.random() - 0.5) * 0.5; 
+                    const dist = Math.random() * 15;
+                    
+                    // Base geometry
+                    tx = dist * Math.cos(armAngle + spread);
+                    ty = dist * Math.sin(armAngle + spread);
+                    tz = (Math.random() - 0.5) * 2; // Flat star
+                    
+                    // Center core is dense
+                    if (Math.random() > 0.8) {
+                        tx *= 0.2; ty *= 0.2; tz *= 0.2;
+                    }
+
+                    // Blue-ish White
+                    r=0.8; g=0.9; b=1.0;
+                }
+
+                // --- 4 FINGERS: WAVE (Calculated in Animate loop) ---
+                else if (mode === 'wave') {
+                    // We just set base grid here, animation handles Y
+                    const side = Math.sqrt(CONFIG.count);
+                    const row = Math.floor(i / side);
+                    const col = i % side;
+                    
+                    // Spread from -20 to 20
+                    tx = (col / side) * 40 - 20;
+                    tz = (row / side) * 40 - 20;
+                    ty = 0; // Calculated later
+
+                    // Cyan/Ocean
+                    r=0.0; g=0.6; b=1.0;
+                }
+
+                // --- 5 FINGERS: SOLAR SYSTEM ---
+                else if (mode === 'solar') {
+                    // 10% Sun, rest planets
+                    const planetIndex = i % 8; // 8 orbital bands
+                    if (i < CONFIG.count * 0.1) {
+                        // Sun
+                        const rad = 3 * Math.random();
+                        const theta = Math.random() * Math.PI * 2;
+                        const phi = Math.acos(2 * Math.random() - 1);
+                        tx = rad * Math.sin(phi) * Math.cos(theta);
+                        ty = rad * Math.sin(phi) * Math.sin(theta);
+                        tz = rad * Math.cos(phi);
+                        r=1; g=0.8; b=0;
+                    } else {
+                        // Bands
+                        const bandRad = 6 + (planetIndex * 2.5) + Math.random(); 
+                        const angle = orbitData[i]; 
+                        
+                        tx = bandRad * Math.cos(angle);
+                        tz = bandRad * Math.sin(angle);
+                        ty = (Math.random()-0.5) * 0.2;
+
+                        // Color by "Planet"
+                        if(planetIndex==2) { r=0; g=0; b=1; } // Earth-ish
+                        else if(planetIndex==3) { r=1; g=0.2; b=0; } // Mars
+                        else { r=0.5; g=0.5; b=0.5; }
+                    }
+                }
+                
+                // --- DEFAULT: CLOUD ---
+                else {
+                   const p = orbitData[i];
+                   tx = Math.sin(p*10)*10;
+                   ty = Math.cos(p*13)*10;
+                   tz = Math.sin(p)*10;
+                   r=1; g=1; b=1;
+                }
+
+                targetPositions[i3] = tx;
+                targetPositions[i3+1] = ty;
+                targetPositions[i3+2] = tz;
+                
+                // Color lerping is hard, we just set it for responsiveness
+                colors[i3] = r; 
+                colors[i3+1] = g; 
+                colors[i3+2] = b;
+            }
+            geometry.attributes.color.needsUpdate = true;
+        }
+
+        // --- 5. ANIMATION LOOP ---
+        function animate() {
+            requestAnimationFrame(animate);
+            time += 0.01;
+
+            const pos = geometry.attributes.position.array;
+            const trg = targetPositions;
+            const sizesArr = geometry.attributes.size.array;
+
+            // Global Rotation based on hand
+            particles.rotation.x = -handY * 0.5;
+            particles.rotation.y = handX * 0.5;
+
+            // Special Animation Logic
+            for(let i=0; i<CONFIG.count; i++) {
+                const i3 = i * 3;
+
+                // 1. Wave Animation (Dynamic Y)
+                if (currentMode === 'wave') {
+                    // Calculate wave physics
+                    const x = trg[i3];
+                    const z = trg[i3+2];
+                    // Overwrite target Y with sine wave math
+                    trg[i3+1] = Math.sin(x * 0.3 + time * 2) * 2 + Math.cos(z * 0.2 + time) * 2;
+                }
+
+                // 2. Solar System Animation (Orbits)
+                if (currentMode === 'solar' && i > CONFIG.count * 0.1) {
+                     // We actually just rotate the whole container for simplicity in WebGL
+                     // but to make it look cool, we can rotate rings independently?
+                     // Let's stick to container rotation for performance with 15k particles.
+                }
+
+                // 3. Twinkle Logic (Star)
+                if (currentMode === 'star') {
+                    // Randomly scale size
+                    sizesArr[i] = 0.5 + Math.sin(time * 10 + i) * 0.5;
+                } else {
+                    sizesArr[i] = 1.0; // Reset
+                }
+
+                // 4. LERP (The Morph)
+                pos[i3]   += (trg[i3]   - pos[i3])   * CONFIG.lerpSpeed;
+                pos[i3+1] += (trg[i3+1] - pos[i3+1]) * CONFIG.lerpSpeed;
+                pos[i3+2] += (trg[i3+2] - pos[i3+2]) * CONFIG.lerpSpeed;
+            }
+
+            // Independent Rotation for Saturn Ring or Galaxy
+            if (currentMode === 'saturn') {
+                particles.rotation.z += 0.01;
+            } else if (currentMode === 'solar') {
+                particles.rotation.y += 0.005;
+            }
+
+            geometry.attributes.position.needsUpdate = true;
+            geometry.attributes.size.needsUpdate = true;
+
+            renderer.render(scene, camera);
+        }
+
+        animate();
+
+
+        // --- 6. AI HAND TRACKING ---
+        const statusText = document.getElementById('status-text');
+        
+        function onResults(results) {
+            statusText.innerText = "SYSTEM ACTIVE - TRACKING HAND";
+            
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                const hand = results.multiHandLandmarks[0];
+                
+                // Map hand to screen center (-1 to 1)
+                handX = (hand[9].x - 0.5) * 2;
+                handY = (hand[9].y - 0.5) * 2;
+
+                // Count fingers (Simple Y check vs Knuckle)
+                const fingers = [8, 12, 16, 20].filter(tipIdx => {
+                    const tip = hand[tipIdx];
+                    const knuckle = hand[tipIdx - 2];
+                    return tip.y < knuckle.y; // If tip is above knuckle
+                }).length;
+
+                // Thumb is tricky, let's treat it by x-distance for simplicity or just use 4 fingers + thumb logic
+                // Refining:
+                // 1 Finger: Index only
+                // 5 Fingers: All up
+                
+                // Check thumb roughly (extended away from palm)
+                const thumbTip = hand[4];
+                const thumbIP = hand[3];
+                const isThumbUp = Math.abs(thumbTip.x - hand[17].x) > 0.15; // wide spread
+                
+                let totalFingers = fingers;
+                if(isThumbUp) totalFingers++;
+
+                // Mode Switching
+                let newMode = currentMode;
+                if (totalFingers === 1) newMode = 'saturn';
+                else if (totalFingers === 2) newMode = 'sun';
+                else if (totalFingers === 3) newMode = 'star';
+                else if (totalFingers === 4) newMode = 'wave';
+                else if (totalFingers === 5) newMode = 'solar';
+                
+                if(newMode !== currentMode) {
+                    statusText.innerText = `MODE DETECTED: ${newMode.toUpperCase()}`;
+                    updateShapes(newMode);
+                }
+
+            }
+        }
+
+        const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
+        hands.setOptions({
+            maxNumHands: 1,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.7,
+            minTrackingConfidence: 0.7
+        });
+        hands.onResults(onResults);
+
+        const camVideo = document.getElementById('cam-preview');
+        const cameraUtils = new Camera(camVideo, {
+            onFrame: async () => { await hands.send({image: camVideo}); },
+            width: 640, height: 480
+        });
+        cameraUtils.start();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+    </script>
+</body>
+</html>

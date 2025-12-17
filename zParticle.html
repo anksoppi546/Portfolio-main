@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Soppi Particle System</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #000; font-family: 'Courier New', Courier, monospace; }
+        canvas { display: block; }
+
+        /* HUD */
+        #ui-layer {
+            position: absolute;
+            top: 20px; left: 20px;
+            color: #0ff;
+            pointer-events: none;
+            z-index: 10;
+            text-shadow: 0 0 10px #0ff;
+        }
+        h1 { margin: 0; font-weight: 400; letter-spacing: 2px; font-size: 1.5rem; }
+        .hud-text { font-size: 0.8rem; opacity: 0.8; margin-top: 5px; }
+        
+        #video-preview {
+            position: absolute;
+            bottom: 20px; left: 20px;
+            width: 200px; height: 150px;
+            border: 1px solid #333;
+            border-radius: 4px;
+            transform: scaleX(-1);
+            opacity: 0.6;
+            z-index: 5;
+        }
+        #input_video { width: 100%; height: 100%; object-fit: cover; }
+
+        #loading {
+            position: absolute; top: 50%; left: 50%; 
+            transform: translate(-50%, -50%);
+            color: #0ff; font-size: 2rem;
+            text-shadow: 0 0 20px #0ff;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="loading">LOADING (ANKIT SOPPI PRESSENTS...)</div>
+
+    <div id="ui-layer">
+        <h1>QUANTUM CORE (BY ANKIT SOPPI)</h1>
+        <div class="hud-text">RENDER MODE: PROCEDURAL GLSL</div>
+        <div class="hud-text">GESTURE: 2-HAND ZOOM ENABLED</div>
+        <div class="hud-text">HINTS: MAKE HAND GESTURE LIKE 1 OR 2 OR 3 FINGERS</div>
+        <div class="hud-text">EFFECT: USE 2 PALM FOR ZOOM IN AND OUT EFFECT</div>
+        <div class="hud-text" id="status">SYSTEM: STANDBY</div>
+    </div>
+
+    <div id="video-preview">
+        <video id="input_video" autoplay playsinline></video>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+
+    <script type="x-shader/x-vertex" id="vertexshader">
+        attribute float size;
+        varying vec3 vColor;
+        
+        void main() {
+            vColor = color;
+            vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+            
+            // This calculates particle size based on depth (Perspective)
+            // 300.0 is the scale factor. Higher = bigger particles.
+            gl_PointSize = size * (400.0 / -mvPosition.z);
+            
+            gl_Position = projectionMatrix * mvPosition;
+        }
+    </script>
+
+    <script type="x-shader/x-fragment" id="fragmentshader">
+        varying vec3 vColor;
+        
+        void main() {
+            // Coordinate of the pixel within the point (0.0 to 1.0)
+            vec2 xy = gl_PointCoord.xy - vec2(0.5);
+            float ll = length(xy);
+            
+            // Crop Circle (discard pixels outside radius 0.5)
+            if(ll > 0.5) discard;
+            
+            // Procedural Glow: Hot center, soft fade
+            // This math runs on every pixel, ensuring infinite resolution
+            float strength = (0.5 - ll) * 2.0; 
+            strength = pow(strength, 2.5); // Sharpness curve
+            
+            gl_FragColor = vec4(vColor, strength);
+        }
+    </script>
+
+    <script>
+        // --- CONFIG ---
+        const CONFIG = {
+            count: 30000, 
+            baseSize: 0.8, // Base size for shader
+            zoomMin: 5,
+            zoomMax: 80
+        };
+
+        // --- THREE SETUP ---
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.z = 40;
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio); // Critical for retina/4K displays
+        document.body.appendChild(renderer.domElement);
+
+        // --- BLOOM ENGINE ---
+        const renderScene = new THREE.RenderPass(scene, camera);
+        const bloomPass = new THREE.UnrealBloomPass(
+            new THREE.Vector2(window.innerWidth, window.innerHeight), 
+            1.2, 0.3, 0.1 // Strength, Radius, Threshold
+        );
+        
+        const composer = new THREE.EffectComposer(renderer);
+        composer.addPass(renderScene);
+        composer.addPass(bloomPass);
+
+        // --- CUSTOM SHADER MATERIAL ---
+        const shaderMaterial = new THREE.ShaderMaterial({
+            uniforms: {},
+            vertexShader: document.getElementById('vertexshader').textContent,
+            fragmentShader: document.getElementById('fragmentshader').textContent,
+            
+            blending: THREE.AdditiveBlending, // Glow effect mixing
+            depthTest: false,
+            transparent: true,
+            vertexColors: true
+        });
+
+        // --- GEOMETRY ---
+        const geometry = new THREE.BufferGeometry();
+        const positions = [];
+        const colors = [];
+        const sizes = [];
+        const targetPositions = new Float32Array(CONFIG.count * 3);
+
+        for(let i=0; i<CONFIG.count; i++) {
+            positions.push((Math.random()-0.5)*100, (Math.random()-0.5)*100, (Math.random()-0.5)*100);
+            colors.push(1, 1, 1); // Start white
+            sizes.push(CONFIG.baseSize * (0.5 + Math.random())); // Variance in size
+            
+            // Init targets
+            targetPositions[i*3] = positions[i*3];
+            targetPositions[i*3+1] = positions[i*3+1];
+            targetPositions[i*3+2] = positions[i*3+2];
+        }
+
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+        geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+        geometry.setAttribute('size', new THREE.Float32BufferAttribute(sizes, 1));
+
+        const particleSystem = new THREE.Points(geometry, shaderMaterial);
+        scene.add(particleSystem);
+
+        // --- LOGIC VARS ---
+        let currentShape = 'cloud';
+        let handOffset = new THREE.Vector3(0,0,0);
+        let targetZoom = 40;
+        let isPinching = false;
+        let isExploding = false;
+        let hueTime = 0;
+
+        // --- SHAPE GENERATOR ---
+        function updateShape(type) {
+            if(currentShape === type && !isExploding) return;
+            currentShape = type;
+            document.getElementById('status').innerText = "MODE: " + type.toUpperCase();
+
+            for(let i=0; i<CONFIG.count; i++) {
+                const idx = i*3;
+                let x,y,z;
+
+                if(type === 'heart') {
+                    const t = Math.random() * Math.PI * 2;
+                    const r = Math.random();
+                    // Parametric Heart
+                    x = 16 * Math.pow(Math.sin(t), 3);
+                    y = 13 * Math.cos(t) - 5*Math.cos(2*t) - 2*Math.cos(3*t) - Math.cos(4*t);
+                    z = (Math.random()-0.5) * 4;
+                    // Scale
+                    const s = 0.5 * Math.sqrt(r);
+                    x *= s; y *= s;
+                } else if (type === 'saturn') {
+                    if (i < CONFIG.count * 0.7) {
+                        // Planet
+                        const r = 5;
+                        const theta = Math.random() * Math.PI * 2;
+                        const phi = Math.acos(2 * Math.random() - 1);
+                        x = r * Math.sin(phi) * Math.cos(theta);
+                        y = r * Math.sin(phi) * Math.sin(theta);
+                        z = r * Math.cos(phi);
+                    } else {
+                        // Ring
+                        const r = 8 + Math.random() * 4;
+                        const theta = Math.random() * Math.PI * 2;
+                        x = r * Math.cos(theta);
+                        z = r * Math.sin(theta);
+                        y = (Math.random()-0.5) * 0.2;
+                        // Tilt
+                        const tilt = 0.4;
+                        let ty = y * Math.cos(tilt) - z * Math.sin(tilt);
+                        let tz = y * Math.sin(tilt) + z * Math.cos(tilt);
+                        y = ty; z = tz;
+                    }
+                } else if (type === 'flower') {
+                    const r = 7;
+                    const theta = Math.random() * Math.PI * 2;
+                    const phi = Math.random() * Math.PI;
+                    const mod = Math.sin(3 * theta) * Math.sin(phi);
+                    const fr = r * mod;
+                    x = fr * Math.sin(phi) * Math.cos(theta);
+                    y = fr * Math.sin(phi) * Math.sin(theta);
+                    z = fr * Math.cos(phi);
+                } else {
+                    // Cloud
+                    const r = 15 * Math.cbrt(Math.random());
+                    const theta = Math.random() * Math.PI * 2;
+                    const phi = Math.acos(2 * Math.random() - 1);
+                    x = r * Math.sin(phi) * Math.cos(theta);
+                    y = r * Math.sin(phi) * Math.sin(theta);
+                    z = r * Math.cos(phi);
+                }
+
+                targetPositions[idx] = x;
+                targetPositions[idx+1] = y;
+                targetPositions[idx+2] = z;
+            }
+        }
+
+        // --- VISION ---
+        function onResults(results) {
+            document.getElementById('loading').style.display = 'none';
+            const handsFound = results.multiHandLandmarks.length;
+
+            if(handsFound === 2) {
+                // ZOOM MODE
+                const h1 = results.multiHandLandmarks[0][9];
+                const h2 = results.multiHandLandmarks[1][9];
+                
+                // Distance 0.1 (close) to 0.7 (far)
+                const dist = Math.hypot(h1.x - h2.x, h1.y - h2.y);
+                
+                // Map distance to camera Z
+                // Far hands (dist 0.6) = Zoom IN (Z=10)
+                // Close hands (dist 0.1) = Zoom OUT (Z=80)
+                const norm = Math.min(Math.max((dist - 0.1) / 0.5, 0), 1);
+                targetZoom = CONFIG.zoomMax - (norm * (CONFIG.zoomMax - CONFIG.zoomMin));
+                
+                document.getElementById('status').innerText = "MODE: ZOOM (" + Math.round(targetZoom) + ")";
+                
+            } else if (handsFound === 1) {
+                // SHAPE MODE
+                const h = results.multiHandLandmarks[0];
+                
+                // Move Center
+                const hx = (0.5 - h[9].x) * 50;
+                const hy = (0.5 - h[9].y) * 30;
+                handOffset.lerp(new THREE.Vector3(hx, hy, 0), 0.1);
+
+                // Detect
+                const up = [8,12,16,20].filter(i => h[i].y < h[i-2].y).length;
+                const pinch = Math.hypot(h[4].x - h[8].x, h[4].y - h[8].y) < 0.05;
+                isPinching = pinch;
+
+                isExploding = (up === 0 && !pinch);
+                
+                if(isExploding) document.getElementById('status').innerText = "MODE: EXPLOSION";
+                else if(up === 1) updateShape('heart');
+                else if(up === 2) updateShape('saturn');
+                else if(up === 3) updateShape('flower');
+                else updateShape('cloud');
+            }
+        }
+
+        const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
+        hands.setOptions({maxNumHands: 2, modelComplexity: 1, minDetectionConfidence: 0.5});
+        hands.onResults(onResults);
+
+        const cam = new Camera(document.getElementById('input_video'), {
+            onFrame: async () => { await hands.send({image: document.getElementById('input_video')}); },
+            width: 1280, height: 720
+        });
+        cam.start();
+
+        // --- ANIMATION LOOP ---
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // 1. Zoom Physics
+            camera.position.z += (targetZoom - camera.position.z) * 0.08;
+
+            // 2. Particle Physics
+            const pArr = geometry.attributes.position.array;
+            const cArr = geometry.attributes.color.array;
+            
+            if(isPinching) hueTime += 0.02;
+
+            for(let i=0; i<CONFIG.count; i++) {
+                const idx = i*3;
+                
+                let tx, ty, tz;
+
+                if(isExploding) {
+                    // Push outward
+                    tx = pArr[idx] + (pArr[idx] - handOffset.x) * 0.05;
+                    ty = pArr[idx+1] + (pArr[idx+1] - handOffset.y) * 0.05;
+                    tz = pArr[idx+2] + (pArr[idx+2] - handOffset.z) * 0.05;
+                    // Hard set
+                    pArr[idx] = tx; pArr[idx+1] = ty; pArr[idx+2] = tz;
+                } else {
+                    // Morph
+                    tx = targetPositions[idx] + handOffset.x;
+                    ty = targetPositions[idx+1] + handOffset.y;
+                    tz = targetPositions[idx+2] + handOffset.z;
+                    
+                    if(isPinching) {
+                        tx = (tx + handOffset.x) * 0.1;
+                        ty = (ty + handOffset.y) * 0.1;
+                        tz = (tz + handOffset.z) * 0.1;
+                    }
+
+                    pArr[idx] += (tx - pArr[idx]) * 0.08;
+                    pArr[idx+1] += (ty - pArr[idx+1]) * 0.08;
+                    pArr[idx+2] += (tz - pArr[idx+2]) * 0.08;
+                }
+
+                // 3. Procedural Color
+                // Calculate hue based on distance + time
+                const dist = Math.sqrt(pArr[idx]**2 + pArr[idx+1]**2);
+                const h = (dist * 0.02 + hueTime) % 1;
+                
+                // Convert HSL to RGB manually for speed
+                // Simple neon palette
+                const r = Math.sin(h * 6.28 + 0) * 0.5 + 0.5;
+                const g = Math.sin(h * 6.28 + 2) * 0.5 + 0.5;
+                const b = Math.sin(h * 6.28 + 4) * 0.5 + 0.5;
+
+                cArr[idx] = r; cArr[idx+1] = g; cArr[idx+2] = b;
+            }
+
+            geometry.attributes.position.needsUpdate = true;
+            geometry.attributes.color.needsUpdate = true;
+            
+            particleSystem.rotation.y += 0.001;
+            
+            composer.render();
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth/window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            composer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+    </script>
+</body>
+</html>

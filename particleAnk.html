@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Particle system: Multiverse Edition</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #000; font-family: 'Segoe UI', sans-serif; }
+        canvas { display: block; }
+
+        #ui {
+            position: absolute; top: 20px; left: 20px;
+            color: rgba(255, 255, 255, 0.9);
+            pointer-events: none; z-index: 10;
+        }
+        h1 { margin: 0; font-weight: 300; letter-spacing: 4px; font-size: 1.4rem; border-bottom: 1px solid #0ff; padding-bottom: 5px; display: inline-block; color: #fff; text-shadow: 0 0 10px #0ff;}
+        
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; font-size: 0.85rem; color: #aaa; background: rgba(0,0,0,0.6); padding: 10px; border-radius: 8px;}
+        .grid div b { color: #fff; }
+        
+        .mode-box { margin-top: 15px; text-align: left; }
+        .mode-label { font-size: 0.8rem; color: #666; letter-spacing: 2px;}
+        .mode-val { font-size: 2rem; font-weight: bold; color: #fff; text-shadow: 0 0 20px #fff; line-height: 1;}
+
+        #cam-preview {
+            position: absolute; bottom: 20px; left: 20px;
+            width: 160px; height: 120px;
+            border: 1px solid #333; opacity: 0.6;
+            transform: scaleX(-1);
+            border-radius: 8px; overflow: hidden;
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+        }
+        #input_video { width: 100%; height: 100%; object-fit: cover; }
+        
+        #loading {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            color: #0ff; font-family: monospace; font-size: 1.2rem;
+            text-align: center;
+            text-shadow: 0 0 15px #0ff;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="loading">CONSTRUCTING SOPPI PARTICLES...<br><span style="font-size:0.8rem; color:#fff">Allow Camera Access</span></div>
+
+    <div id="ui">
+        <h1>SOPPI MULTIVERSE // PARTICLE SYSTEM</h1>
+        <div class="grid">
+            <div>☝️ <b>1:</b> Heart (Red)</div>
+            <div>✌️ <b>2:</b> Saturn (Gold/Teal)</div>
+            <div>🤟 <b>3:</b> Flower (Rainbow)</div>
+            <div>🖖 <b>4:</b> Pyramid (Neon)</div>
+            <div>🖐 <b>5:</b> Galaxy (Purple)</div>
+            <div>🤘 <b>Rock:</b> DNA (Green/Pink)</div>
+            <div>✊ <b>Fist:</b> Explosion</div>
+            <div>👐 <b>2 Hands:</b> Zoom</div>
+        </div>
+        <div class="mode-box">
+            <div class="mode-label">CURRENT FORM</div>
+            <div class="mode-val" id="mode-display">Initializing</div>
+        </div>
+    </div>
+
+    <div id="cam-preview">
+        <video id="input_video" autoplay playsinline></video>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+
+    <script type="x-shader/x-vertex" id="vShader">
+        attribute float size;
+        attribute vec3 customColor;
+        varying vec3 vColor;
+        
+        void main() {
+            vColor = customColor;
+            vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+            gl_PointSize = size * (250.0 / -mvPosition.z); 
+            gl_Position = projectionMatrix * mvPosition;
+        }
+    </script>
+
+    <script type="x-shader/x-fragment" id="fShader">
+        varying vec3 vColor;
+        
+        void main() {
+            vec2 xy = gl_PointCoord.xy - vec2(0.5);
+            float ll = length(xy);
+            if(ll > 0.5) discard;
+
+            // Intense core
+            float strength = 1.0 - (ll * 2.0);
+            strength = pow(strength, 2.0); // Sharper falloff
+            
+            gl_FragColor = vec4(vColor, strength);
+        }
+    </script>
+
+    <script>
+        // --- CONFIG ---
+        const CONFIG = {
+            count: 90000,
+            baseSize: 0.5, 
+            lerpSpeed: 0.08,
+            zoomMin: 10,
+            zoomMax: 90
+        };
+
+        // --- THREE SETUP ---
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+        camera.position.z = 50;
+
+        const renderer = new THREE.WebGLRenderer({ antialias: false, stencil: false, depth: false });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        document.body.appendChild(renderer.domElement);
+
+        // --- BLOOM ---
+        const composer = new THREE.EffectComposer(renderer);
+        composer.addPass(new THREE.RenderPass(scene, camera));
+        const bloom = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.1);
+        composer.addPass(bloom);
+
+        // --- GEOMETRY ---
+        const geometry = new THREE.BufferGeometry();
+        const posArray = new Float32Array(CONFIG.count * 3);
+        const targetArray = new Float32Array(CONFIG.count * 3);
+        const colorArray = new Float32Array(CONFIG.count * 3);
+        const targetColorArray = new Float32Array(CONFIG.count * 3);
+        const sizeArray = new Float32Array(CONFIG.count);
+
+        // Initialization
+        for(let i=0; i<CONFIG.count; i++) {
+            const i3 = i*3;
+            // Start scattered
+            posArray[i3] = (Math.random()-0.5) * 100;
+            posArray[i3+1] = (Math.random()-0.5) * 100;
+            posArray[i3+2] = (Math.random()-0.5) * 100;
+            targetArray.set([posArray[i3], posArray[i3+1], posArray[i3+2]], i3);
+            
+            sizeArray[i] = CONFIG.baseSize * (0.3 + Math.random());
+            
+            // White start
+            colorArray.set([1,1,1], i3);
+            targetColorArray.set([1,1,1], i3);
+        }
+
+        geometry.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+        geometry.setAttribute('customColor', new THREE.BufferAttribute(colorArray, 3));
+        geometry.setAttribute('size', new THREE.BufferAttribute(sizeArray, 1));
+
+        const material = new THREE.ShaderMaterial({
+            uniforms: {},
+            vertexShader: document.getElementById('vShader').textContent,
+            fragmentShader: document.getElementById('fShader').textContent,
+            blending: THREE.AdditiveBlending,
+            depthTest: false,
+            transparent: true
+        });
+
+        const particles = new THREE.Points(geometry, material);
+        scene.add(particles);
+
+        // --- STATE ---
+        let currentShape = 'galaxy';
+        let handOffset = new THREE.Vector3(0,0,0);
+        let targetZoom = 50;
+        let isExploding = false;
+        let isPinching = false;
+
+        // --- COLOR PALETTE GENERATOR ---
+        function getShapeColor(t, type, idx) {
+            const c = new THREE.Color();
+            
+            if (type === 'heart') {
+                // RED PALETTE: Deep Red edge -> Hot Pink Center
+                // t (distance ratio) 0=center, 1=edge
+                if(t < 0.3) c.setHSL(0.9, 1.0, 0.8); // Pink/White Core
+                else c.setHSL(0.0, 1.0, 0.4); // Deep Red
+            } 
+            else if (type === 'saturn') {
+                // PLANET: Gold, RING: Cyan
+                // We stored "ring vs body" in t. t=0 is body, t=1 is ring.
+                if(t < 0.5) c.setHSL(0.1, 1.0, 0.6); // Gold Body
+                else c.setHSL(0.5, 1.0, 0.7); // Cyan Ring
+            } 
+            else if (type === 'flower') {
+                // RAINBOW: Hue depends on angle (calculated in shape function)
+                c.setHSL(t, 1.0, 0.6); 
+            }
+            else if (type === 'pyramid') {
+                // NEON: Green Edges, Blue Faces
+                if(t > 0.9) c.setHSL(0.3, 1.0, 0.6); // Green Edges
+                else c.setHSL(0.6, 1.0, 0.3); // Blue Faces
+            }
+            else if (type === 'dna') {
+                // HELIX: 2 Strands, Green vs Magenta
+                // t is strand ID (0 or 1)
+                if(t < 0.5) c.setHSL(0.35, 1.0, 0.5); // Green
+                else c.setHSL(0.85, 1.0, 0.6); // Magenta
+            }
+            else {
+                // GALAXY: Purple/Blue gradient
+                const hue = 0.6 + t * 0.2; // Blue (0.6) to Purple (0.8)
+                c.setHSL(hue, 0.8, 0.6); 
+            }
+            return c;
+        }
+
+        // --- SHAPE GENERATOR ---
+        function setShape(type) {
+            if(currentShape === type) return;
+            currentShape = type;
+            document.getElementById('mode-display').innerText = type.toUpperCase();
+            document.getElementById('mode-display').style.color = getThemeColor(type);
+
+            const count = CONFIG.count;
+            const random = Math.random;
+            const sin = Math.sin; const cos = Math.cos; const PI = Math.PI;
+
+            for(let i=0; i<count; i++) {
+                const i3 = i*3;
+                let x,y,z, metaData;
+
+                if(type === 'heart') {
+                    // Parametric Heart
+                    const t = random() * PI * 2;
+                    const r = random(); 
+                    let tx = 16 * Math.pow(sin(t), 3);
+                    let ty = 13 * cos(t) - 5*cos(2*t) - 2*cos(3*t) - cos(4*t);
+                    const s = 0.6 * Math.sqrt(r);
+                    x = tx * s; y = ty * s; z = (random()-0.5) * 5;
+                    metaData = r; // Distance from center
+
+                } else if(type === 'saturn') {
+                     if (i < count * 0.6) {
+                        // Planet Body
+                        const r = 6;
+                        const theta = random() * PI * 2;
+                        const phi = Math.acos(2 * random() - 1);
+                        x = r * sin(phi) * cos(theta);
+                        y = r * sin(phi) * sin(theta);
+                        z = r * cos(phi);
+                        metaData = 0; // ID: Body
+                    } else {
+                        // Rings
+                        const r = 9 + random() * 5;
+                        const theta = random() * PI * 2;
+                        x = r * cos(theta);
+                        z = r * sin(theta);
+                        y = (random()-0.5) * 0.3;
+                        // Tilt
+                        const tilt = 0.5;
+                        let ty_t = y * cos(tilt) - z * sin(tilt);
+                        let tz_t = y * sin(tilt) + z * cos(tilt);
+                        y = ty_t; z = tz_t;
+                        metaData = 1; // ID: Ring
+                    }
+
+                } else if(type === 'flower') {
+                    const r = 8;
+                    const theta = random() * PI * 2;
+                    const phi = random() * PI;
+                    const mod = sin(3 * theta) * sin(phi); 
+                    const fr = r * mod;
+                    x = fr * sin(phi) * cos(theta);
+                    y = fr * sin(phi) * sin(theta);
+                    z = fr * cos(phi);
+                    // Color based on petal angle (0 to 1)
+                    metaData = (theta / (PI*2)); 
+
+                } else if(type === 'pyramid') {
+                    // Tetrahedron
+                    // 4 vertices
+                    const v = [
+                        {x:0, y:10, z:0},
+                        {x:-8, y:-5, z:8},
+                        {x:8, y:-5, z:8},
+                        {x:0, y:-5, z:-8}
+                    ];
+                    // Pick 2 random vertices and interpolate
+                    const a = v[Math.floor(random()*4)];
+                    const b = v[Math.floor(random()*4)];
+                    const t = random();
+                    x = a.x + (b.x - a.x) * t;
+                    y = a.y + (b.y - a.y) * t;
+                    z = a.z + (b.z - a.z) * t;
+                    
+                    // Add noise to fill volume
+                    x += (random()-0.5)*2; y += (random()-0.5)*2; z += (random()-0.5)*2;
+                    
+                    // Determine if edge (close to t=0 or t=1)
+                    metaData = (t < 0.1 || t > 0.9) ? 1 : 0;
+
+                } else if (type === 'dna') {
+                    // Double Helix
+                    const h = (random() - 0.5) * 30; // Height
+                    const angle = h * 0.5;
+                    const r = 5;
+                    // Strand 1 or 2
+                    const strand = (i % 2 === 0) ? 0 : 1;
+                    const offset = strand * PI; // 180 deg offset
+                    x = r * cos(angle + offset);
+                    z = r * sin(angle + offset);
+                    y = h;
+                    
+                    // Thickness
+                    x += (random()-0.5); z += (random()-0.5);
+                    metaData = strand; 
+
+                } else {
+                    // Galaxy Spiral
+                    const arms = 3;
+                    const armOffset = (Math.floor(random()*arms) / arms) * PI * 2;
+                    const dist = random();
+                    const r = dist * 20;
+                    const theta = r * 0.5 + armOffset; // Twist
+                    
+                    x = r * cos(theta);
+                    z = r * sin(theta);
+                    y = (random()-0.5) * (10 * (1-dist)); // Thicker at center
+                    
+                    // Add star scatter
+                    x += (random()-0.5)*2; z += (random()-0.5)*2;
+
+                    metaData = dist; // Center (0) to Edge (1)
+                }
+
+                targetArray[i3] = x;
+                targetArray[i3+1] = y;
+                targetArray[i3+2] = z;
+
+                const col = getShapeColor(metaData, type, i);
+                targetColorArray[i3] = col.r;
+                targetColorArray[i3+1] = col.g;
+                targetColorArray[i3+2] = col.b;
+            }
+        }
+
+        // Helper for UI Color
+        function getThemeColor(t) {
+            if(t==='heart') return '#ff0055';
+            if(t==='saturn') return '#ffcc00';
+            if(t==='flower') return '#00ffaa';
+            if(t==='pyramid') return '#aaff00';
+            if(t==='dna') return '#ff00ff';
+            return '#00aaff';
+        }
+
+        // --- VISION ---
+        function onResults(results) {
+            document.getElementById('loading').style.display = 'none';
+            const lands = results.multiHandLandmarks;
+
+            if (lands.length === 2) {
+                // ZOOM (2 Hands)
+                const h1 = lands[0][9]; const h2 = lands[1][9];
+                const dist = Math.hypot(h1.x - h2.x, h1.y - h2.y);
+                const n = Math.min(Math.max((dist - 0.1) / 0.6, 0), 1);
+                targetZoom = CONFIG.zoomMax - (n * (CONFIG.zoomMax - CONFIG.zoomMin));
+                document.getElementById('mode-display').innerText = "ZOOMING";
+            } else if (lands.length === 1) {
+                // SHAPE DETECTION
+                const h = lands[0];
+                const hx = (0.5 - h[9].x) * 60; 
+                const hy = (0.5 - h[9].y) * 35;
+                handOffset.lerp(new THREE.Vector3(hx, hy, 0), 0.1);
+
+                // Count fingers up
+                const tips = [8,12,16,20]; const dips = [6,10,14,18];
+                let up = 0;
+                let fingers = [];
+                for(let i=0; i<4; i++) { 
+                    if(h[tips[i]].y < h[dips[i]].y) {
+                        up++; 
+                        fingers.push(i); // 0=Index, 1=Mid, 2=Ring, 3=Pinky
+                    }
+                }
+
+                const pd = Math.hypot(h[4].x - h[8].x, h[4].y - h[8].y);
+                const isPinch = pd < 0.05;
+                
+                // Advanced Gesture Logic
+                if (up === 0 && !isPinch) {
+                    isExploding = true;
+                    document.getElementById('mode-display').innerText = "EXPLOSION";
+                } else {
+                    isExploding = false;
+                    
+                    // Rock Sign Detection (Index & Pinky up, Middle & Ring down)
+                    // fingers array contains indices of UP fingers. Expecting [0, 3]
+                    const isRock = up === 2 && fingers.includes(0) && fingers.includes(3);
+
+                    if (isRock) setShape('dna');
+                    else if (up === 4) setShape('pyramid'); // 4 fingers (no thumb)
+                    else if (up === 3) setShape('flower');
+                    else if (up === 2) setShape('saturn');
+                    else if (up === 1) setShape('heart');
+                    else if (up === 0 && isPinch) { 
+                        // Pinching closed fist = Tiny condensed ball
+                        isPinching = true; // Handled in animation loop
+                    } else {
+                        // Open Hand (usually thumb is out too, so basically 5)
+                        setShape('galaxy');
+                    }
+                    
+                    if(!isPinch) isPinching = false;
+                }
+            }
+        }
+
+        const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
+        hands.setOptions({maxNumHands: 2, modelComplexity: 1, minDetectionConfidence: 0.5});
+        hands.onResults(onResults);
+        
+        const cam = new Camera(document.getElementById('input_video'), {
+            onFrame: async () => { await hands.send({image: document.getElementById('input_video')}); },
+            width: 640, height: 480
+        });
+        cam.start();
+
+        // --- ANIMATION ---
+        function animate() {
+            requestAnimationFrame(animate);
+
+            camera.position.z += (targetZoom - camera.position.z) * 0.05;
+
+            const pa = geometry.attributes.position.array;
+            const ca = geometry.attributes.customColor.array;
+            const limit = CONFIG.count * 3;
+
+            for(let i=0; i<limit; i+=3) {
+                
+                // Position Morph
+                if(isExploding) {
+                    let dx = pa[i] - handOffset.x;
+                    let dy = pa[i+1] - handOffset.y;
+                    let dz = pa[i+2] - handOffset.z;
+                    pa[i] += dx * 0.08; pa[i+1] += dy * 0.08; pa[i+2] += dz * 0.08;
+                    // Flash White
+                    ca[i] = 1; ca[i+1] = 1; ca[i+2] = 1;
+                } else {
+                    let tx = targetArray[i] + handOffset.x;
+                    let ty = targetArray[i+1] + handOffset.y;
+                    let tz = targetArray[i+2] + handOffset.z;
+
+                    if(isPinching) {
+                        tx = (tx + handOffset.x) * 0.05;
+                        ty = (ty + handOffset.y) * 0.05;
+                        tz = (tz + handOffset.z) * 0.05;
+                    }
+                    pa[i] += (tx - pa[i]) * CONFIG.lerpSpeed;
+                    pa[i+1] += (ty - pa[i+1]) * CONFIG.lerpSpeed;
+                    pa[i+2] += (tz - pa[i+2]) * CONFIG.lerpSpeed;
+                    
+                    // Color Morph
+                    ca[i]   += (targetColorArray[i]   - ca[i])   * 0.05;
+                    ca[i+1] += (targetColorArray[i+1] - ca[i+1]) * 0.05;
+                    ca[i+2] += (targetColorArray[i+2] - ca[i+2]) * 0.05;
+                }
+            }
+
+            geometry.attributes.position.needsUpdate = true;
+            geometry.attributes.customColor.needsUpdate = true;
+
+            particles.rotation.y += 0.002;
+            composer.render();
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth/window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            composer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+
+    </script>
+</body>
+</html>

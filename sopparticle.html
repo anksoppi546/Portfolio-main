@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Particle: SOPPI Edition</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #000; font-family: 'Segoe UI', sans-serif; }
+        canvas { display: block; }
+        #ui {
+            position: absolute; top: 20px; left: 20px;
+            color: rgba(239, 177, 177, 0.9);
+            pointer-events: none; z-index: 10;
+        }
+        h1 { margin: 0; font-weight: 300; letter-spacing: 4px; font-size: 1.4rem; border-bottom: 1px solid #ffd700; padding-bottom: 5px; display: inline-block; color: #fff; text-shadow: 0 0 10px #ffd700;}
+        
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; font-size: 0.85rem; color: #aaa; background: rgba(0,0,0,0.6); padding: 10px; border-radius: 8px;}
+        .grid div b { color: #bbefb1; }
+        
+        .mode-box { margin-top: 15px; text-align: left; }
+        .mode-label { font-size: 0.8rem; color: #666; letter-spacing: 2px;}
+        .mode-val { font-size: 2rem; font-weight: bold; color: #fff; text-shadow: 0 0 20px #fff; line-height: 1; text-transform: uppercase;}
+
+        #cam-preview {
+            position: absolute; bottom: 20px; left: 20px;
+            width: 160px; height: 120px;
+            border: 1px solid #333; opacity: 0.6;
+            transform: scaleX(-1);
+            border-radius: 8px; overflow: hidden;
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+        }
+        #input_video { width: 100%; height: 100%; object-fit: cover; }
+        
+        #loading {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            color: #ffd700; font-family: monospace; font-size: 1.2rem;
+            text-align: center;
+            text-shadow: 0 0 15px #ffd700;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="loading">GENERATING PARTICLE DATA...<br><span style="font-size:0.8rem; color:#fff">Please Allow Camera Access</span></div>
+
+    <div id="ui">
+        <h1>ANKIT SOPPI // PARTICLE SYSTEM</h1>
+        <div class="grid">
+            <div>🖐 <b>No Hands:</b> Default Text</div>
+            <div>👐 <b>2 Hands:</b> Zoom In/Out</div>
+            <div>☝️ <b>1 Finger:</b> Heart</div>
+            <div>✌️ <b>2 Fingers:</b> Saturn</div>
+            <div>🤟 <b>3 Fingers:</b> Flower</div>
+            <div>🖖 <b>4 Fingers:</b> Pyramid</div>
+            <div>🖐 <b>5 Fingers:</b> Galaxy</div>
+            <div>✊ <b>Fist:</b> Explosion</div>
+        </div>
+        <div class="mode-box">
+            <div class="mode-label">CURRENT FORM</div>
+            <div class="mode-val" id="mode-display">Initializing</div>
+        </div>
+    </div>
+
+    <div id="cam-preview">
+        <video id="input_video" autoplay playsinline></video>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+
+    <script type="x-shader/x-vertex" id="vShader">
+        attribute float size;
+        attribute vec3 customColor;
+        varying vec3 vColor;
+        void main() {
+            vColor = customColor;
+            vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+            // Scale size by distance for perspective
+            gl_PointSize = size * (300.0 / -mvPosition.z); 
+            gl_Position = projectionMatrix * mvPosition;
+        }
+    </script>
+
+    <script type="x-shader/x-fragment" id="fShader">
+        varying vec3 vColor;
+        void main() {
+            // Circular particle shaped by math
+            vec2 xy = gl_PointCoord.xy - vec2(0.5);
+            float ll = length(xy);
+            if(ll > 0.5) discard;
+            // Intense hot core look
+            float strength = 1.0 - (ll * 2.0);
+            strength = pow(strength, 2.5); 
+            gl_FragColor = vec4(vColor, strength);
+        }
+    </script>
+
+    <script>
+        // --- CONFIG ---
+        const CONFIG = {
+            count: 90000,
+            baseSize: 0.6, 
+            lerpSpeed: 0.07,
+            zoomMin: 10,  // Camera close (Hands far apart)
+            zoomMax: 150  // Camera far (Hands close together) - Increased for better zoom out
+        };
+
+        // --- TEXT GENERATION ---
+        let textPoints = [];
+        function generateTextData(text) {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = 1000; canvas.height = 200;
+            ctx.fillStyle = 'black'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = 'white'; ctx.font = '900 130px Arial'; 
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+
+            const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+            textPoints = [];
+            for (let y = 0; y < canvas.height; y += 2) {
+                for (let x = 0; x < canvas.width; x += 2) {
+                    if (data[(y * canvas.width + x) * 4] > 128) {
+                        textPoints.push({
+                            x: (x - canvas.width / 2) * 0.25,
+                            y: -(y - canvas.height / 2) * 0.25,
+                            z: 0
+                        });
+                    }
+                }
+            }
+            // Shuffle points for better distribution
+            textPoints.sort(() => Math.random() - 0.5);
+        }
+        generateTextData("ANKIT SOPPI");
+
+        // --- THREE SETUP ---
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 1, 2000);
+        camera.position.z = 60;
+
+        const renderer = new THREE.WebGLRenderer({ antialias: false, stencil: false, depth: false });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        document.body.appendChild(renderer.domElement);
+
+        // --- BLOOM ---
+        const composer = new THREE.EffectComposer(renderer);
+        composer.addPass(new THREE.RenderPass(scene, camera));
+        const bloom = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.6, 0.3, 0.05);
+        composer.addPass(bloom);
+
+        // --- GEOMETRY ---
+        const geometry = new THREE.BufferGeometry();
+        const posArray = new Float32Array(CONFIG.count * 3);
+        const targetArray = new Float32Array(CONFIG.count * 3);
+        const colorArray = new Float32Array(CONFIG.count * 3);
+        const targetColorArray = new Float32Array(CONFIG.count * 3);
+        const sizeArray = new Float32Array(CONFIG.count);
+
+        for(let i=0; i<CONFIG.count; i++) {
+            const i3 = i*3;
+            // Start slightly scattered around center
+            posArray[i3] = (Math.random()-0.5) * 50;
+            posArray[i3+1] = (Math.random()-0.5) * 50;
+            posArray[i3+2] = (Math.random()-0.5) * 50;
+            targetArray.set([posArray[i3], posArray[i3+1], posArray[i3+2]], i3);
+            
+            sizeArray[i] = CONFIG.baseSize * (0.5 + Math.random());
+            
+            // Init White
+            colorArray.set([1,1,1], i3);
+            targetColorArray.set([1,1,1], i3);
+        }
+
+        geometry.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+        geometry.setAttribute('customColor', new THREE.BufferAttribute(colorArray, 3));
+        geometry.setAttribute('size', new THREE.BufferAttribute(sizeArray, 1));
+
+        const material = new THREE.ShaderMaterial({
+            uniforms: {},
+            vertexShader: document.getElementById('vShader').textContent,
+            fragmentShader: document.getElementById('fShader').textContent,
+            blending: THREE.AdditiveBlending, depthTest: false, transparent: true
+        });
+
+        const particles = new THREE.Points(geometry, material);
+        scene.add(particles);
+
+        // --- STATE ---
+        let currentShape = 'waiting';
+        let handOffset = new THREE.Vector3(0,0,0);
+        let targetZoom = 60;
+        let isExploding = false;
+        let isPinching = false;
+
+        // --- COLOR GEN ---
+        function getShapeColor(t, type) {
+            const c = new THREE.Color();
+            if (type === 'text') {
+                // Gold to Silver gradient based on X position
+                c.setHSL(0.12 - t * 0.12, 1.0, 0.6);
+            } else if (type === 'heart') {
+                if(t < 0.3) c.setHSL(0.9, 1.0, 0.8); else c.setHSL(0.0, 1.0, 0.4);
+            } else if (type === 'saturn') {
+                if(t < 0.5) c.setHSL(0.1, 1.0, 0.6); else c.setHSL(0.5, 1.0, 0.7);
+            } else if (type === 'flower') {
+                c.setHSL(t, 1.0, 0.6); 
+            } else if (type === 'pyramid') {
+                if(t > 0.9) c.setHSL(0.3, 1.0, 0.6); else c.setHSL(0.6, 1.0, 0.3);
+            } else if (type === 'dna') {
+                if(t < 0.5) c.setHSL(0.35, 1.0, 0.5); else c.setHSL(0.85, 1.0, 0.6);
+            } else {
+                c.setHSL(0.6 + t * 0.2, 0.8, 0.6); 
+            }
+            return c;
+        }
+
+        // --- SHAPE GEN ---
+        function setShape(type) {
+            if(currentShape === type) return;
+            currentShape = type;
+            const modeDisplay = document.getElementById('mode-display');
+            modeDisplay.innerText = type === 'text' ? "ANKIT SOPPI" : type.toUpperCase();
+            modeDisplay.style.color = (type === 'text') ? '#ffd700' : getThemeColor(type);
+
+            const count = CONFIG.count;
+            const random = Math.random; const sin = Math.sin; const cos = Math.cos; const PI = Math.PI;
+
+            for(let i=0; i<count; i++) {
+                const i3 = i*3;
+                let x,y,z, metaData;
+
+                if (type === 'text') {
+                    // Map particles to generated text points cyclically
+                    const p = textPoints[i % textPoints.length];
+                    x = p.x;
+                    y = p.y;
+                    z = p.z + (random()-0.5)*3; // Slight depth noise
+                    // Normalize X for color gradient
+                    metaData = (x + 125) / 250; 
+
+                } else if(type === 'heart') {
+                    const t = random()*PI*2; const r = random(); 
+                    x = (16*Math.pow(sin(t),3)) * 0.6 * Math.sqrt(r);
+                    y = (13*cos(t)-5*cos(2*t)-2*cos(3*t)-cos(4*t)) * 0.6 * Math.sqrt(r);
+                    z = (random()-0.5)*5; metaData = r;
+                } else if(type === 'saturn') {
+                     if (i<count*0.6) {
+                        const r=6, th=random()*PI*2, ph=Math.acos(2*random()-1);
+                        x=r*sin(ph)*cos(th); y=r*sin(ph)*sin(th); z=r*cos(ph); metaData=0;
+                    } else {
+                        const r=9+random()*5, th=random()*PI*2;
+                        x=r*cos(th); z=r*sin(th); y=(random()-0.5)*0.3;
+                        const tilt=0.5; let ty=y*cos(tilt)-z*sin(tilt); z=y*sin(tilt)+z*cos(tilt); y=ty; metaData=1;
+                    }
+                } else if(type === 'flower') {
+                    const r=8, th=random()*PI*2, ph=random()*PI;
+                    const mod=sin(3*th)*sin(ph); const fr=r*mod;
+                    x=fr*sin(ph)*cos(th); y=fr*sin(ph)*sin(th); z=fr*cos(ph); metaData=(th/(PI*2)); 
+                } else if(type === 'pyramid') {
+                    const v=[{x:0,y:10,z:0},{x:-8,y:-5,z:8},{x:8,y:-5,z:8},{x:0,y:-5,z:-8}];
+                    const a=v[Math.floor(random()*4)], b=v[Math.floor(random()*4)], t=random();
+                    x=a.x+(b.x-a.x)*t; y=a.y+(b.y-a.y)*t; z=a.z+(b.z-a.z)*t;
+                    x+=(random()-0.5)*2; y+=(random()-0.5)*2; z+=(random()-0.5)*2; metaData=(t<0.1||t>0.9)?1:0;
+                } else if (type === 'dna') {
+                    const h=(random()-0.5)*30, ang=h*0.5, r=5, strand=(i%2===0)?0:1, off=strand*PI;
+                    x=r*cos(ang+off); z=r*sin(ang+off); y=h;
+                    x+=(random()-0.5); z+=(random()-0.5); metaData=strand; 
+                } else { // Galaxy
+                    const arms=3, off=(Math.floor(random()*arms)/arms)*PI*2, dist=random(), r=dist*25, th=r*0.5+off;
+                    x=r*cos(th); z=r*sin(th); y=(random()-0.5)*(10*(1-dist));
+                    x+=(random()-0.5)*2; z+=(random()-0.5)*2; metaData=dist;
+                }
+
+                targetArray[i3] = x; targetArray[i3+1] = y; targetArray[i3+2] = z;
+                const col = getShapeColor(metaData, type);
+                targetColorArray[i3] = col.r; targetColorArray[i3+1] = col.g; targetColorArray[i3+2] = col.b;
+            }
+        }
+
+        function getThemeColor(t) {
+            if(t==='heart') return '#ff0055'; if(t==='saturn') return '#ffcc00';
+            if(t==='flower') return '#00ffaa'; if(t==='pyramid') return '#aaff00';
+            if(t==='dna') return '#ff00ff'; return '#00aaff';
+        }
+
+        // --- VISION ---
+        function onResults(results) {
+            document.getElementById('loading').style.display = 'none';
+            const lands = results.multiHandLandmarks;
+
+            if (lands.length === 2) {
+                // ZOOM MODE
+                const h1 = lands[0][9]; const h2 = lands[1][9];
+                const dist = Math.hypot(h1.x - h2.x, h1.y - h2.y);
+                // Map distance 0.1-0.6 to ZoomMax-ZoomMin
+                const n = Math.min(Math.max((dist - 0.1) / 0.5, 0), 1);
+                // Invert logic: Close hands (n=0) = Max Zoom (Far away)
+                targetZoom = CONFIG.zoomMax - (n * (CONFIG.zoomMax - CONFIG.zoomMin));
+                document.getElementById('mode-display').innerText = "ZOOMING";
+                handOffset.lerp(new THREE.Vector3(0,0,0), 0.1);
+
+            } else if (lands.length === 1) {
+                // GESTURE MODE
+                const h = lands[0];
+                handOffset.lerp(new THREE.Vector3((0.5-h[9].x)*60, (0.5-h[9].y)*35, 0), 0.1);
+                
+                const tips=[8,12,16,20], dips=[6,10,14,18];
+                let up=0, fingers=[];
+                for(let i=0; i<4; i++) { if(h[tips[i]].y < h[dips[i]].y) { up++; fingers.push(i); }}
+                const isPinch = Math.hypot(h[4].x - h[8].x, h[4].y - h[8].y) < 0.05;
+                
+                if (up === 0 && !isPinch) {
+                    isExploding = true; document.getElementById('mode-display').innerText = "EXPLOSION";
+                } else {
+                    isExploding = false;
+                    if (up === 2 && fingers.includes(0) && fingers.includes(3)) setShape('dna');
+                    else if (up === 4) setShape('pyramid'); else if (up === 3) setShape('flower');
+                    else if (up === 2) setShape('saturn'); else if (up === 1) setShape('heart');
+                    else if (up === 0 && isPinch) isPinching = true; 
+                    else setShape('galaxy'); // Open hand
+                    if(!isPinch) isPinching = false;
+                }
+            } else {
+                // NO HANDS - DEFAULT TO TEXT
+                setShape('text');
+                handOffset.lerp(new THREE.Vector3(0,0,0), 0.05);
+                // Slowly reset zoom to default viewing distance for text
+                targetZoom = targetZoom + (60 - targetZoom) * 0.02;
+            }
+        }
+
+        const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
+        hands.setOptions({maxNumHands: 2, modelComplexity: 1, minDetectionConfidence: 0.5});
+        hands.onResults(onResults);
+        const cam = new Camera(document.getElementById('input_video'), {
+            onFrame: async () => { await hands.send({image: document.getElementById('input_video')}); }, width: 640, height: 480
+        });
+        cam.start();
+
+        // --- ANIMATION ---
+        function animate() {
+            requestAnimationFrame(animate);
+            camera.position.z += (targetZoom - camera.position.z) * 0.08; // Smoother zoom
+
+            const pa = geometry.attributes.position.array;
+            const ca = geometry.attributes.customColor.array;
+            const limit = CONFIG.count * 3;
+
+            for(let i=0; i<limit; i+=3) {
+                if(isExploding) {
+                    pa[i] += (pa[i]-handOffset.x)*0.08; pa[i+1] += (pa[i+1]-handOffset.y)*0.08; pa[i+2] += (pa[i+2]-handOffset.z)*0.08;
+                    ca[i]=1; ca[i+1]=1; ca[i+2]=1;
+                } else {
+                    let tx = targetArray[i] + handOffset.x;
+                    let ty = targetArray[i+1] + handOffset.y;
+                    let tz = targetArray[i+2] + handOffset.z;
+                    if(isPinching) { tx=(tx+handOffset.x)*0.05; ty=(ty+handOffset.y)*0.05; tz=(tz+handOffset.z)*0.05; }
+                    pa[i] += (tx-pa[i])*CONFIG.lerpSpeed; pa[i+1] += (ty-pa[i+1])*CONFIG.lerpSpeed; pa[i+2] += (tz-pa[i+2])*CONFIG.lerpSpeed;
+                    ca[i] += (targetColorArray[i]-ca[i])*0.05; ca[i+1] += (targetColorArray[i+1]-ca[i+1])*0.05; ca[i+2] += (targetColorArray[i+2]-ca[i+2])*0.05;
+                }
+            }
+            geometry.attributes.position.needsUpdate = true; geometry.attributes.customColor.needsUpdate = true;
+            particles.rotation.y += 0.002; composer.render();
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth/window.innerHeight; camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight); composer.setSize(window.innerWidth, window.innerHeight);
+        });
+        animate();
+    </script>
+</body>
+</html>
